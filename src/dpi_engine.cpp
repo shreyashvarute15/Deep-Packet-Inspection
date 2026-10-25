@@ -272,31 +272,64 @@ PacketJob DPIEngine::createPacketJob(const PacketAnalyzer::RawPacket& raw,
     // Copy packet data
     job.data = raw.data;
     
-    // Calculate offsets
+    // Calculate offsets safely.
     job.eth_offset = 0;
-    job.ip_offset = 14;  // Ethernet header is 14 bytes
-    
-    // IP header length
-    if (job.data.size() > 14) {
-        uint8_t ip_ihl = job.data[14] & 0x0F;
-        size_t ip_header_len = ip_ihl * 4;
-        job.transport_offset = 14 + ip_header_len;
-        
-        // Transport header length
-        if (parsed.has_tcp && job.data.size() > job.transport_offset) {
-            uint8_t tcp_data_offset = (job.data[job.transport_offset + 12] >> 4) & 0x0F;
-            size_t tcp_header_len = tcp_data_offset * 4;
-            job.payload_offset = job.transport_offset + tcp_header_len;
-        } else if (parsed.has_udp) {
-            job.payload_offset = job.transport_offset + 8;  // UDP header is 8 bytes
-        }
-        
-        if (job.payload_offset < job.data.size()) {
-            job.payload_length = job.data.size() - job.payload_offset;
-            job.payload_data = job.data.data() + job.payload_offset;
+    job.ip_offset = 14;  // Ethernet header is 14 bytes.
+
+    // Reset offsets and payload metadata before calculating them.
+    job.transport_offset = 0;
+    job.payload_offset = 0;
+    job.payload_length = 0;
+    job.payload_data = nullptr;
+
+    // Require a complete minimum Ethernet + IPv4 header.
+    if (job.data.size() >= 14 + 20) {
+        const uint8_t ip_version_ihl = job.data[14];
+        const uint8_t ip_version = ip_version_ihl >> 4;
+        const size_t ip_header_len = (ip_version_ihl & 0x0F) * 4;
+
+        // This implementation assumes Ethernet followed by IPv4.
+        if (ip_version == 4 &&
+            ip_header_len >= 20 &&
+            job.data.size() >= 14 + ip_header_len) {
+
+            job.transport_offset = 14 + ip_header_len;
+            const size_t remaining =
+                job.data.size() - job.transport_offset;
+
+            if (parsed.has_tcp) {
+                // TCP's data-offset field is at byte 12 of its header.
+                if (remaining >= 20) {
+                    const size_t tcp_header_len =
+                        ((job.data[job.transport_offset + 12] >> 4) & 0x0F) * 4;
+
+                    if (tcp_header_len >= 20 &&
+                        tcp_header_len <= remaining) {
+                        job.payload_offset =
+                            job.transport_offset + tcp_header_len;
+                    }
+                }
+            } else if (parsed.has_udp) {
+                // UDP header is 8 bytes.
+                if (remaining >= 8) {
+                    job.payload_offset = job.transport_offset + 8;
+                }
+            }
+
+            // Only expose payload metadata when the offset is valid.
+            if (job.payload_offset > 0 &&
+                job.payload_offset <= job.data.size()) {
+                job.payload_length =
+                    job.data.size() - job.payload_offset;
+
+                if (job.payload_length > 0) {
+                    job.payload_data =
+                        job.data.data() + job.payload_offset;
+                }
+            }
         }
     }
-    
+
     return job;
 }
 

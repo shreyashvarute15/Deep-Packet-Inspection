@@ -1,3 +1,6 @@
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #include <iostream>
 #include <iomanip>
@@ -45,6 +48,11 @@ void printVersion() {
 }
 
 int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
+
     std::string pcap_file;
     std::string output_file;
     std::vector<std::string> block_ips;
@@ -273,20 +281,20 @@ int main(int argc, char* argv[]) {
     reader.close();
 
     // Print CLI report.
-    std::cout << "\n╔══════════════════════════════════════════════════════════════╗\n";
-    std::cout << "║                      DPI ANALYSIS REPORT                     ║\n";
-    std::cout << "╠══════════════════════════════════════════════════════════════╣\n";
-    std::cout << "║ Total Packets:      " << std::setw(12) << total_packets << "                           ║\n";
-    std::cout << "║ Total Bytes:        " << std::setw(12) << total_bytes << "                           ║\n";
-    std::cout << "║ TCP Packets:        " << std::setw(12) << tcp_count << "                           ║\n";
-    std::cout << "║ UDP Packets:        " << std::setw(12) << udp_count << "                           ║\n";
-    std::cout << "╠══════════════════════════════════════════════════════════════╣\n";
-    std::cout << "║ Forwarded Packets:  " << std::setw(12) << forwarded << "                           ║\n";
-    std::cout << "║ Dropped Packets:    " << std::setw(12) << dropped << "                           ║\n";
-    std::cout << "║ Total Connections:  " << std::setw(12) << tracker.getActiveCount() << "                           ║\n";
-    std::cout << "╠══════════════════════════════════════════════════════════════╣\n";
-    std::cout << "║                    APPLICATION BREAKDOWN                     ║\n";
-    std::cout << "╠══════════════════════════════════════════════════════════════╣\n";
+    std::cout << "\n+--------------------------------------------------------------+\n";
+    std::cout << "|                      DPI ANALYSIS REPORT                     |\n";
+    std::cout << "+--------------------------------------------------------------+\n";
+    std::cout << "| Total Packets:      " << std::setw(12) << total_packets << "                           |\n";
+    std::cout << "| Total Bytes:        " << std::setw(12) << total_bytes << "                           |\n";
+    std::cout << "| TCP Packets:        " << std::setw(12) << tcp_count << "                           |\n";
+    std::cout << "| UDP Packets:        " << std::setw(12) << udp_count << "                           |\n";
+    std::cout << "+--------------------------------------------------------------+\n";
+    std::cout << "| Forwarded Packets:  " << std::setw(12) << forwarded << "                           |\n";
+    std::cout << "| Dropped Packets:    " << std::setw(12) << dropped << "                           |\n";
+    std::cout << "| Total Connections:  " << std::setw(12) << tracker.getActiveCount() << "                           |\n";
+    std::cout << "+--------------------------------------------------------------+\n";
+    std::cout << "|                    APPLICATION BREAKDOWN                     |\n";
+    std::cout << "+--------------------------------------------------------------+\n";
 
     std::vector<std::pair<AppType, uint64_t>> sorted_apps(
         app_stats.begin(),
@@ -309,16 +317,16 @@ int main(int argc, char* argv[]) {
         int bar_len = static_cast<int>(pct / 5);
         std::string bar(bar_len, '#');
 
-        std::cout << "║ " << std::setw(15) << std::left
+        std::cout << "| " << std::setw(15) << std::left
                   << appTypeToString(app)
                   << std::setw(8) << std::right << count
                   << " " << std::setw(5) << std::fixed
                   << std::setprecision(1) << pct << "% "
                   << std::setw(20) << std::left << bar
-                  << "  ║\n";
+                  << "  |\n";
     }
 
-    std::cout << "╚══════════════════════════════════════════════════════════════╝\n";
+    std::cout << "+--------------------------------------------------------------+\n";
 
     // Display HTTP/TLS hostnames separately.
     if (!detected_snis.empty()) {

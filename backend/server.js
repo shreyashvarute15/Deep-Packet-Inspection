@@ -1,4 +1,4 @@
-
+﻿
 import express from "express";
 import cors from "cors";
 import multer from "multer";
@@ -19,11 +19,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 const projectRoot = path.resolve(__dirname, "..");
-const analyzerPath = path.join(
-  projectRoot,
-  "build-ucrt64",
-  "packet_analyzer.exe"
-);
+const analyzerPath = process.env.ANALYZER_PATH || (process.platform === "win32" ? path.join(projectRoot, "build-ucrt64", "packet_analyzer.exe") : path.join(projectRoot, "packet_analyzer"));
 
 const uploadDir = path.join(__dirname, "uploads");
 const reportDir = path.join(__dirname, "reports");
@@ -155,3 +151,4 @@ app.use((error, _req, res, _next) => {
 app.listen(PORT, () => {
   console.log(`DPI API running at http://localhost:${PORT}`);
 });
+

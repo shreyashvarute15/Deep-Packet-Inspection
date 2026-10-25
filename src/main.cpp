@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -53,6 +54,7 @@ int main(int argc, char* argv[]) {
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
+
         if (arg == "--pcap" && i + 1 < argc) {
             pcap_file = argv[++i];
         } else if (arg == "--output" && i + 1 < argc) {
@@ -86,7 +88,11 @@ int main(int argc, char* argv[]) {
     }
 
     RuleManager rules;
-    for (const auto& ip : block_ips) rules.blockIP(ip);
+
+    for (const auto& ip : block_ips) {
+        rules.blockIP(ip);
+    }
+
     for (const auto& app_str : block_apps) {
         for (int i = 0; i < static_cast<int>(AppType::APP_COUNT); i++) {
             if (appTypeToString(static_cast<AppType>(i)) == app_str) {
@@ -95,7 +101,10 @@ int main(int argc, char* argv[]) {
             }
         }
     }
-    for (const auto& dom : block_domains) rules.blockDomain(dom);
+
+    for (const auto& dom : block_domains) {
+        rules.blockDomain(dom);
+    }
 
     ConnectionTracker tracker(0);
 
@@ -110,7 +119,10 @@ int main(int argc, char* argv[]) {
     uint64_t udp_count = 0;
 
     std::unordered_map<AppType, uint64_t> app_stats;
+
+    // Keep application hostnames and DNS queries separate.
     std::unordered_map<std::string, AppType> detected_snis;
+    std::unordered_map<std::string, AppType> detected_dns_queries;
 
     std::cout << "\n[DPI Engine] Analyzing " << pcap_file << "...\n";
 
@@ -118,22 +130,38 @@ int main(int argc, char* argv[]) {
         total_packets++;
         total_bytes += raw.data.size();
 
-        if (!PacketParser::parse(raw, parsed)) continue;
+        if (!PacketParser::parse(raw, parsed)) {
+            continue;
+        }
 
-        if (parsed.has_tcp) tcp_count++;
-        else if (parsed.has_udp) udp_count++;
+        if (parsed.has_tcp) {
+            tcp_count++;
+        } else if (parsed.has_udp) {
+            udp_count++;
+        }
 
-        if (!parsed.has_ip) continue;
+        if (!parsed.has_ip) {
+            continue;
+        }
 
-        // Five Tuple
+        // Build the five-tuple.
         FiveTuple tuple;
+
         auto parseIP = [](const std::string& ip) -> uint32_t {
             uint32_t result = 0;
-            int octet = 0, shift = 0;
+            int octet = 0;
+            int shift = 0;
+
             for (char c : ip) {
-                if (c == '.') { result |= (octet << shift); shift += 8; octet = 0; }
-                else if (c >= '0' && c <= '9') octet = octet * 10 + (c - '0');
+                if (c == '.') {
+                    result |= (octet << shift);
+                    shift += 8;
+                    octet = 0;
+                } else if (c >= '0' && c <= '9') {
+                    octet = octet * 10 + (c - '0');
+                }
             }
+
             return result | (octet << shift);
         };
 
@@ -146,37 +174,77 @@ int main(int argc, char* argv[]) {
         Connection* conn = tracker.getOrCreateConnection(tuple);
         tracker.updateConnection(conn, raw.data.size(), true);
 
-        // Classify if needed
+        // Classify the connection when needed.
         if (conn->state != ConnectionState::CLASSIFIED) {
-            // Check TLS SNI
-            if (parsed.has_tcp && parsed.dest_port == 443 && parsed.payload_length > 5) {
-                auto sni = SNIExtractor::extract(parsed.payload_data, parsed.payload_length);
+            // Check TLS SNI.
+            if (parsed.has_tcp &&
+                parsed.dest_port == 443 &&
+                parsed.payload_length > 5) {
+
+                auto sni = SNIExtractor::extract(
+                    parsed.payload_data,
+                    parsed.payload_length
+                );
+
                 if (sni) {
-                    tracker.classifyConnection(conn, sniToAppType(*sni), *sni);
+                    tracker.classifyConnection(
+                        conn,
+                        sniToAppType(*sni),
+                        *sni
+                    );
+
                     detected_snis[*sni] = conn->app_type;
                 }
             }
-            // Check HTTP Host
-            else if (parsed.has_tcp && parsed.dest_port == 80 && parsed.payload_length > 10) {
-                auto host = HTTPHostExtractor::extract(parsed.payload_data, parsed.payload_length);
+            // Check HTTP Host.
+            else if (parsed.has_tcp &&
+                     parsed.dest_port == 80 &&
+                     parsed.payload_length > 10) {
+
+                auto host = HTTPHostExtractor::extract(
+                    parsed.payload_data,
+                    parsed.payload_length
+                );
+
                 if (host) {
-                    tracker.classifyConnection(conn, sniToAppType(*host), *host);
+                    tracker.classifyConnection(
+                        conn,
+                        sniToAppType(*host),
+                        *host
+                    );
+
                     detected_snis[*host] = conn->app_type;
                 }
             }
-            // Check DNS
-            else if (parsed.has_udp && (parsed.src_port == 53 || parsed.dest_port == 53)) {
+            // Check DNS queries and responses.
+            else if (parsed.has_udp &&
+                     (parsed.src_port == 53 || parsed.dest_port == 53)) {
+
                 if (parsed.payload_length > 12) {
-                    auto query = DNSExtractor::extractQuery(parsed.payload_data, parsed.payload_length);
+                    auto query = DNSExtractor::extractQuery(
+                        parsed.payload_data,
+                        parsed.payload_length
+                    );
+
                     if (query) {
-                        tracker.classifyConnection(conn, AppType::DNS, *query);
-                        detected_snis[*query] = AppType::DNS;
+                        tracker.classifyConnection(
+                            conn,
+                            AppType::DNS,
+                            *query
+                        );
+
+                        // Store DNS names separately from HTTP/TLS hosts.
+                        detected_dns_queries[*query] = AppType::DNS;
                     } else {
-                        tracker.classifyConnection(conn, AppType::DNS, "");
+                        tracker.classifyConnection(
+                            conn,
+                            AppType::DNS,
+                            ""
+                        );
                     }
                 }
             }
-            // Fallbacks
+            // Fallback classification.
             else if (parsed.dest_port == 443) {
                 conn->app_type = AppType::HTTPS;
             } else if (parsed.dest_port == 80) {
@@ -184,8 +252,14 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Apply rules
-        auto block_reason = rules.shouldBlock(tuple.src_ip, tuple.dst_port, conn->app_type, conn->sni);
+        // Apply filtering rules.
+        auto block_reason = rules.shouldBlock(
+            tuple.src_ip,
+            tuple.dst_port,
+            conn->app_type,
+            conn->sni
+        );
+
         if (block_reason) {
             tracker.blockConnection(conn);
             dropped++;
@@ -198,7 +272,7 @@ int main(int argc, char* argv[]) {
 
     reader.close();
 
-    // Print CLI Report
+    // Print CLI report.
     std::cout << "\n╔══════════════════════════════════════════════════════════════╗\n";
     std::cout << "║                      DPI ANALYSIS REPORT                     ║\n";
     std::cout << "╠══════════════════════════════════════════════════════════════╣\n";
@@ -214,32 +288,62 @@ int main(int argc, char* argv[]) {
     std::cout << "║                    APPLICATION BREAKDOWN                     ║\n";
     std::cout << "╠══════════════════════════════════════════════════════════════╣\n";
 
-    std::vector<std::pair<AppType, uint64_t>> sorted_apps(app_stats.begin(), app_stats.end());
-    std::sort(sorted_apps.begin(), sorted_apps.end(),
-              [](const auto& a, const auto& b) { return a.second > b.second; });
+    std::vector<std::pair<AppType, uint64_t>> sorted_apps(
+        app_stats.begin(),
+        app_stats.end()
+    );
+
+    std::sort(
+        sorted_apps.begin(),
+        sorted_apps.end(),
+        [](const auto& a, const auto& b) {
+            return a.second > b.second;
+        }
+    );
 
     for (const auto& [app, count] : sorted_apps) {
-        double pct = total_packets > 0 ? (100.0 * count / total_packets) : 0;
+        double pct = total_packets > 0
+            ? (100.0 * count / total_packets)
+            : 0;
+
         int bar_len = static_cast<int>(pct / 5);
         std::string bar(bar_len, '#');
-        std::cout << "║ " << std::setw(15) << std::left << appTypeToString(app)
+
+        std::cout << "║ " << std::setw(15) << std::left
+                  << appTypeToString(app)
                   << std::setw(8) << std::right << count
-                  << " " << std::setw(5) << std::fixed << std::setprecision(1) << pct << "% "
-                  << std::setw(20) << std::left << bar << "  ║\n";
+                  << " " << std::setw(5) << std::fixed
+                  << std::setprecision(1) << pct << "% "
+                  << std::setw(20) << std::left << bar
+                  << "  ║\n";
     }
 
     std::cout << "╚══════════════════════════════════════════════════════════════╝\n";
 
+    // Display HTTP/TLS hostnames separately.
     if (!detected_snis.empty()) {
-        std::cout << "\n[Detected Hostnames & DNS Queries]\n";
-        for (const auto& [sni, app] : detected_snis) {
-            std::cout << "  - " << sni << " -> " << appTypeToString(app) << "\n";
+        std::cout << "\n[Detected HTTP/TLS Hostnames]\n";
+
+        for (const auto& [host, app] : detected_snis) {
+            std::cout << "  - " << host
+                      << " -> " << appTypeToString(app) << "\n";
         }
     }
 
-    // Save JSON if requested
+    // Display DNS query names separately.
+    if (!detected_dns_queries.empty()) {
+        std::cout << "\n[Detected DNS Queries]\n";
+
+        for (const auto& [query, app] : detected_dns_queries) {
+            std::cout << "  - " << query
+                      << " -> " << appTypeToString(app) << "\n";
+        }
+    }
+
+    // Save JSON if requested.
     if (!output_file.empty()) {
         std::ofstream out(output_file);
+
         if (out.is_open()) {
             out << "{\n";
             out << "  \"total_packets\": " << total_packets << ",\n";
@@ -249,24 +353,69 @@ int main(int argc, char* argv[]) {
             out << "  \"forwarded\": " << forwarded << ",\n";
             out << "  \"dropped\": " << dropped << ",\n";
             out << "  \"connections\": " << tracker.getActiveCount() << ",\n";
+
             out << "  \"applications\": {\n";
+
             for (size_t i = 0; i < sorted_apps.size(); ++i) {
-                out << "    \"" << appTypeToString(sorted_apps[i].first) << "\": " << sorted_apps[i].second;
-                if (i + 1 < sorted_apps.size()) out << ",";
+                out << "    \""
+                    << appTypeToString(sorted_apps[i].first)
+                    << "\": " << sorted_apps[i].second;
+
+                if (i + 1 < sorted_apps.size()) {
+                    out << ",";
+                }
+
                 out << "\n";
             }
+
             out << "  },\n";
+
+            // JSON array for HTTP/TLS hostnames.
             out << "  \"detected_hosts\": [\n";
+
             size_t idx = 0;
+
             for (const auto& [host, app] : detected_snis) {
-                out << "    {\"host\": \"" << host << "\", \"app\": \"" << appTypeToString(app) << "\"}";
-                if (++idx < detected_snis.size()) out << ",";
+                out << "    {\"host\": \"" << host
+                    << "\", \"app\": \""
+                    << appTypeToString(app) << "\"}";
+
+                if (++idx < detected_snis.size()) {
+                    out << ",";
+                }
+
                 out << "\n";
             }
+
+            out << "  ],\n";
+
+            // Separate JSON array for DNS query names.
+            out << "  \"detected_dns_queries\": [\n";
+
+            idx = 0;
+
+            for (const auto& [query, app] : detected_dns_queries) {
+                out << "    {\"query\": \"" << query
+                    << "\", \"app\": \""
+                    << appTypeToString(app) << "\"}";
+
+                if (++idx < detected_dns_queries.size()) {
+                    out << ",";
+                }
+
+                out << "\n";
+            }
+
             out << "  ]\n";
             out << "}\n";
+
             out.close();
-            std::cout << "\n[Output] JSON report written to: " << output_file << "\n";
+
+            std::cout << "\n[Output] JSON report written to: "
+                      << output_file << "\n";
+        } else {
+            std::cerr << "\n[Error] Could not write JSON report to: "
+                      << output_file << "\n";
         }
     }
 

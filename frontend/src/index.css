@@ -1,0 +1,87 @@
+
+:root {
+  font-family: "DM Sans", "Segoe UI", sans-serif;
+  color: #eeeee5;
+  background: #141513;
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  scroll-behavior: smooth;
+  background: #141513;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #141513;
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  font-family: "DM Sans", "Segoe UI", sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font-size: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #c7f36b;
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+::selection {
+  background: #c7f36b;
+  color: #171812;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: #171815;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #45463d;
+  border: 2px solid #171815;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #626453;
+}
+
+#root {
+  min-height: 100vh;
+}

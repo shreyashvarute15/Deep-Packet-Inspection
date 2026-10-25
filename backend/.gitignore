@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Uploaded PCAP captures and generated reports
+backend/uploads/*
+backend/reports/*
+
+# Build output
+frontend/dist/
+
+# Logs
+*.log
+npm-debug.log*

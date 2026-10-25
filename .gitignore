@@ -1,0 +1,8 @@
+build*/
+*.exe
+*.obj
+*.o
+*.dll
+*.pdb
+classification_report.json
+filtered_test.pcap

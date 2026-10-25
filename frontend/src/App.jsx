@@ -1,4 +1,4 @@
-
+﻿
 import { useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -26,7 +26,7 @@ import {
   Tooltip,
 } from "recharts";
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = "https://deep-packet-inspection-wwu9.onrender.com/api";
 const COLORS = ["#c7f36b", "#8c9a70", "#e6a15a", "#85877b", "#62645b"];
 
 function formatBytes(bytes = 0) {
@@ -380,10 +380,10 @@ export default function App() {
               </strong>
               <span>
                 {file
-                  ? `${formatBytes(file.size)} · Ready to analyze`
+                  ? `${formatBytes(file.size)} Â· Ready to analyze`
                   : "Drag and drop a PCAP file here, or browse your files."}
               </span>
-              <small>PCAP / CAP files · Maximum 50 MB</small>
+              <small>PCAP / CAP files Â· Maximum 50 MB</small>
             </div>
 
             <div className="upload-actions">
@@ -455,7 +455,7 @@ export default function App() {
             <StatCard
               icon={Activity}
               label="Total packets"
-              value={report ? (report.total_packets || 0).toLocaleString() : "—"}
+              value={report ? (report.total_packets || 0).toLocaleString() : "â€”"}
               detail="Packets in capture"
               accent="green"
             />
@@ -463,7 +463,7 @@ export default function App() {
             <StatCard
               icon={Network}
               label="Total data"
-              value={report ? formatBytes(report.total_bytes || 0) : "—"}
+              value={report ? formatBytes(report.total_bytes || 0) : "â€”"}
               detail={
                 report
                   ? `${(report.total_bytes || 0).toLocaleString()} bytes`
@@ -475,7 +475,7 @@ export default function App() {
             <StatCard
               icon={Globe}
               label="Connections"
-              value={report ? (report.connections || 0).toLocaleString() : "—"}
+              value={report ? (report.connections || 0).toLocaleString() : "â€”"}
               detail="Tracked connections"
               accent="orange"
             />
@@ -483,7 +483,7 @@ export default function App() {
             <StatCard
               icon={ShieldCheck}
               label="Forwarded"
-              value={report ? (report.forwarded || 0).toLocaleString() : "—"}
+              value={report ? (report.forwarded || 0).toLocaleString() : "â€”"}
               detail={
                 report
                   ? `${(report.dropped || 0).toLocaleString()} dropped`
@@ -763,7 +763,7 @@ export default function App() {
           <footer className="page-footer">
             <span>
               <span className="status-dot" />
-              PacketLens · C++17 inspection engine
+              PacketLens Â· C++17 inspection engine
             </span>
             <span>
               Results reflect the uploaded capture, not live network monitoring.
@@ -774,3 +774,4 @@ export default function App() {
     </div>
   );
 }
+
